@@ -6,13 +6,13 @@
 
 As of Jan. 2024, the CloudStor server is dead. Model files are hosted on huggingface:
 
-https://huggingface.co/ZjuCv/AdelaiDet/tree/main
-https://huggingface.co/tianzhi/AdelaiDet-FCOS/tree/main
-https://huggingface.co/tianzhi/AdelaiDet-CondInst/tree/main
-https://huggingface.co/tianzhi/AdelaiDet-BoxInst/tree/main
+- https://huggingface.co/ZjuCv/AdelaiDet/tree/main
+- https://huggingface.co/tianzhi/AdelaiDet-FCOS/tree/main
+- https://huggingface.co/tianzhi/AdelaiDet-CondInst/tree/main
+- https://huggingface.co/tianzhi/AdelaiDet-BoxInst/tree/main
 
 
-AdelaiDet is an open source toolbox for multiple instance-level recognition tasks on top of [Detectron2](https://github.com/facebookresearch/detectron2).
+*AdelaiDet* is an open source toolbox for multiple instance-level recognition tasks on top of [Detectron2](https://github.com/facebookresearch/detectron2).
 All instance-level recognition works from our group are open-sourced here.
 
 To date, AdelaiDet implements the following algorithms:
