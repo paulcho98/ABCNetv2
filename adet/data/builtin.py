@@ -33,6 +33,55 @@ _PREDEFINED_SPLITS_TEXT = {
     "icdar2013_train": ("icdar2013/train_images", "icdar2013/ic13_train.json"),
     "icdar2015_train": ("icdar2015/train_images", "icdar2015/ic15_train.json"),
     "icdar2015_test": ("icdar2015/test_images", "icdar2015/ic15_test.json"),
+    "sam_text_test": ( # This is the name you use in your YAML
+        "/media/dataset1/text_restoration/100K/images/test/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_jpg.json" # json_file
+    ),
+    "sam_text_test_swinir": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/SwinIR/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    "sam_text_test_real-esrgan": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/Real-ESRGAN/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_jpg.json" # json_file
+    ),
+    "sam_text_test_resshift": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/ResShift/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    "sam_text_test_stablesr": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/StableSR/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    "sam_text_test_diffbir": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/DiffBIR/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    "sam_text_test_seesr": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/SeeSR/sample00/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    "sam_text_test_jihye_21": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/JIHYE_STAGE3_swinReal_kernelReal_ctrlV21_unetV21/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    "sam_text_test_jihye_21_gtprompt": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/JIHYE_STAGE3_swinReal_kernelReal_ctrlV21_unetV21_GTprompt/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    "sam_text_test_jihye_21_gtprompt_tag": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/JIHYE_STAGE3_swinReal_kernelReal_ctrlV21_unetV21_GTprompt_TAGstyle/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    "sam_text_test_pho_21": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/PHO_STAGE3_swinReal_kernelReal_ctrlV21_unetV21/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    "sam_text_test_pho_21_gtprompt": ( # This is the name you use in your YAML
+        "/media/dataset1/hyunbin/benchmarks/SAM_text_test/PHO_STAGE3_swinReal_kernelReal_ctrlV21_unetV21_GTprompt/", # image_root
+        "/media/dataset1/text_restoration/100K/images/test/dataset_coco_png.json" # json_file
+    ),
+    
 }
 
 metadata_text = {

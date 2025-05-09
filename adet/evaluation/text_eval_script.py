@@ -30,8 +30,10 @@ def default_evaluation_params():
             'AREA_PRECISION_CONSTRAINT' :0.5,
             'WORD_SPOTTING' :WORD_SPOTTING,
             'MIN_LENGTH_CARE_WORD' :3,
-            'GT_SAMPLE_NAME_2_ID':'([0-9]+).txt',
-            'DET_SAMPLE_NAME_2_ID':'([0-9]+).txt',            
+            # 'GT_SAMPLE_NAME_2_ID':'([0-9]+).txt',
+            # 'DET_SAMPLE_NAME_2_ID':'([0-9]+).txt',
+            'GT_SAMPLE_NAME_2_ID': r'(sa_\d+_crop_\d+)\.txt',
+            'DET_SAMPLE_NAME_2_ID': r'(sa_\d+_crop_\d+)\.txt',
             'LTRB':False, #LTRB:2points(left,top,right,bottom) or 4 points(x1,y1,x2,y2,x3,y3,x4,y4)
             'CRLF':False, # Lines are delimited by Windows CRLF format
             'CONFIDENCES':False, #Detections must include confidence value. MAP and MAR will be calculated,
@@ -256,6 +258,11 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
     arrGlobalConfidences = [];
     arrGlobalMatches = [];
 
+    # Overall lists to store per-instance and per-image NED averages
+    all_ned_values = []        # To store all NED values from all instances
+    per_image_ned_averages = []  # To store per-image average NED
+
+
     for resFile in gt:
         # print('resgt', resFile)
         gtFile = rrc_evaluation_funcs.decode_utf8(gt[resFile])
@@ -368,6 +375,8 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
                         pD = detPols[detNum]
                         iouMat[gtNum,detNum] = get_intersection_over_union(pD,pG)
                 
+                ned_values_per_image = []
+
                 for gtNum in range(len(gtPols)):
                     for detNum in range(len(detPols)):
                         if gtRectMat[gtNum] == 0 and detRectMat[detNum] == 0 and gtNum not in gtDontCarePolsNum and detNum not in detDontCarePolsNum :
@@ -377,12 +386,22 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
                                 #detection matched only if transcription is equal
                                 # det_only_correct = True
                                 # detOnlyCorrect += 1
+                                ed_distance = string_metric.levenshtein(gtTrans[gtNum].upper(), detTrans[detNum].upper())
+                                # Compute Normalized Edit Distance
+                                max_len = max(len(gtTrans[gtNum]), len(detTrans[detNum]))
+                                ned = 1 - (ed_distance / max_len) if max_len != 0 else 1.0
+
+                                # Save NED values
+                                ned_values_per_image.append(ned)  # For current image
+                                all_ned_values.append(ned)        # For entire dataset
+
                                 if evaluationParams['WORD_SPOTTING']:
-                                    edd = string_metric.levenshtein(gtTrans[gtNum].upper(), detTrans[detNum].upper())
-                                    if edd<=0: 
-                                        correct = True
-                                    else:
-                                        correct = False
+                                    # edd = string_metric.levenshtein(gtTrans[gtNum].upper(), detTrans[detNum].upper())
+                                    # if edd<=0: 
+                                    #     correct = True
+                                    # else:
+                                    #     correct = False
+                                    correct = ed_distance <= 0
                                     # correct = gtTrans[gtNum].upper() == detTrans[detNum].upper()
                                 else:
                                     try:
@@ -433,6 +452,12 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
         det_only_numGlobalCareGt += det_only_numGtCare
         det_only_numGlobalCareDet += det_only_numDetCare
 
+        # Compute per-image average NED after processing the current image
+        avg_ned_current_image = (sum(ned_values_per_image) / len(ned_values_per_image)) if ned_values_per_image else 0.0
+
+        # Store this per-image average
+        per_image_ned_averages.append(avg_ned_current_image)
+
         perSampleMetrics[resFile] = {
                                         'precision':precision,
                                         'recall':recall,
@@ -445,6 +470,7 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
                                         'gtDontCare':gtDontCarePolsNum,
                                         'detDontCare':detDontCarePolsNum,
                                         'evaluationParams': evaluationParams,
+                                        'avg_ned': avg_ned_current_image,
                                     }
         
     
@@ -459,10 +485,17 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
     
     methodMetrics = r"E2E_RESULTS: precision: {}, recall: {}, hmean: {}".format(methodPrecision, methodRecall, methodHmean)
     det_only_methodMetrics = r"DETECTION_ONLY_RESULTS: precision: {}, recall: {}, hmean: {}".format(det_only_methodPrecision, det_only_methodRecall, det_only_methodHmean)
-    
-    
+
+    # Compute overall NED averages after processing ALL images
+    overall_avg_ned = (sum(all_ned_values) / len(all_ned_values)) if all_ned_values else 0.0
+    overall_per_image_avg_ned = (sum(per_image_ned_averages) / len(per_image_ned_averages)) if per_image_ned_averages else 0.0
+
+
     resDict = {'calculated':True,'Message':'','e2e_method': methodMetrics,'det_only_method': det_only_methodMetrics,'per_sample': perSampleMetrics}
-    
+
+    # Add the new metrics here
+    resDict['overall_avg_ned'] = overall_avg_ned
+    resDict['overall_per_image_avg_ned'] = overall_per_image_avg_ned
     
     return resDict;
 

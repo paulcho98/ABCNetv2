@@ -74,6 +74,9 @@ class TextEvaluator():
         elif "custom" in dataset_name:
             self._text_eval_gt_path = "datasets/evaluation/gt_custom.zip"
             self._word_spotting = False
+        elif "sam_text_test" in dataset_name:
+            self._text_eval_gt_path = "/media/dataset1/text_restoration/100K/images/test/dataset_test.zip"
+            self._word_spotting = False
 
         self._text_eval_confidence = cfg.MODEL.FCOS.INFERENCE_TH_TEST
     def reset(self):
@@ -125,7 +128,9 @@ class TextEvaluator():
             for line in fres:
                 line = line.strip()
                 s = line.split(': ')
-                filename = '{:07d}.txt'.format(int(s[0]))
+                # filename = '{:07d}.txt'.format(int(s[0]))
+                image_id_str = s[0] # This is your basename string
+                filename = f'{image_id_str}.txt' # Use the basename directly
                 outName = os.path.join(dirn, filename)
                 with open(outName, 'a') as fout:
                     ptr = s[1].strip().split(',####')
@@ -368,6 +373,8 @@ class TextEvaluator():
         text_result_full["e2e_method"] = dict_lexicon[str(self.lexicon_type)] + "-" + text_result_full["e2e_method"]
         os.remove(result_path)
         os.remove(result_path_full)
+        self._logger.info("Overall Average NED (instance-level): {:.4f}".format(text_result['overall_avg_ned']))
+        self._logger.info("Overall Average NED (per-image-level): {:.4f}".format(text_result['overall_per_image_avg_ned']))
         # parse
         template = "(\S+): (\S+): (\S+), (\S+): (\S+), (\S+): (\S+)"
         result = text_result["det_only_method"]
