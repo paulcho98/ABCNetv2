@@ -1,0 +1,51 @@
+_BASE_: "Base-SAM_text_test.yaml" # Inherits your SAM_text_test specific base settings
+
+MODEL:
+  # Path to the general ABCNetV2 R50 pretrained model.
+  # This model is from 'configs/BAText/Pretrain/v2_attn_R_50.yaml'
+  # Ensure this file "model_v2_pretrain.pth" is accessible, e.g., in the root project directory or a 'weights/' folder.
+  WEIGHTS: "model_v2_pretrain.pth"
+
+  # These settings should match the architecture of model_v2_pretrain.pth
+  # which are typically defined in configs/BAText/Pretrain/v2_attn_R_50.yaml
+  # and its base configs/BAText/Pretrain/Base-Pretrain.yaml -> configs/BAText/Base-BAText.yaml
+  # We are inheriting most of these via _BASE_, but explicitly listing key architectural ones for clarity
+  # or if they differ from the ultimate base.
+
+  BACKBONE:
+    NAME: "build_fcos_resnet_bifpn_backbone" # From v2_attn_R_50.yaml
+  BiFPN: # From v2_attn_R_50.yaml
+    IN_FEATURES: ["res2", "res3", "res4", "res5"]
+    OUT_CHANNELS: 256
+    NUM_REPEATS: 2
+    NORM: "SyncBN"
+  RESNETS: # From v2_attn_R_50.yaml (via Base-BAText.yaml)
+    DEPTH: 50
+    OUT_FEATURES: ["res2", "res3", "res4", "res5"] # From Base-BAText.yaml
+  FPN: # From Base-BAText.yaml
+    IN_FEATURES: ["res2", "res3", "res4", "res5"]
+  PROPOSAL_GENERATOR: # From Base-BAText.yaml
+    NAME: "BAText"
+  ROI_HEADS: # From Base-BAText.yaml
+    NAME: "TextHead"
+
+  BATEXT: # Settings from v2_attn_R_50.yaml
+    RECOGNIZER: "attn"
+    USE_COORDCONV: True
+    USE_AET: True
+    # POOLER_RESOLUTION, NUM_CHARS, VOC_SIZE, CUSTOM_DICT are inherited from Base-SAM_text_test.yaml (and its base)
+
+# SOLVER settings are not strictly needed for --eval-only but included for completeness.
+# These are copied from configs/BAText/Pretrain/v2_attn_R_50.yaml
+SOLVER:
+  IMS_PER_BATCH: 8
+  BASE_LR: 0.01
+  STEPS: (160000, 220000)
+  MAX_ITER: 260000
+  CHECKPOINT_PERIOD: 20000
+
+TEST:
+  EVAL_PERIOD: 20000 # From Pretrain/v2_attn_R_50.yaml
+
+# Default OUTPUT_DIR for this specific config. Can be overridden.
+OUTPUT_DIR: "output/ABCNETv2/SAM_text_test/GT"

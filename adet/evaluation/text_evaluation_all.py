@@ -59,6 +59,7 @@ class TextEvaluator():
         self.dataset_name = dataset_name
         # use dataset_name to decide eval_gt_path
         self.lexicon_type = cfg.MODEL.BATEXT.EVAL_TYPE
+        
         if "totaltext" in dataset_name:
             self._text_eval_gt_path = "datasets/evaluation/gt_totaltext.zip"
             self._word_spotting = True
@@ -75,7 +76,13 @@ class TextEvaluator():
             self._text_eval_gt_path = "datasets/evaluation/gt_custom.zip"
             self._word_spotting = False
         elif "sam_text_test" in dataset_name:
-            self._text_eval_gt_path = "/media/dataset1/text_restoration/100K/images/test/dataset_test.zip"
+            self._text_eval_gt_path = "/data/hyunbin/dataset1/text_restoration/100K/images/test/dataset_test.zip"
+            self._word_spotting = False
+        elif "real_benchmark" in dataset_name:
+            self._text_eval_gt_path = "/data/hyunbin/dataset1/hyunbin/generated_data/real_benchmark_full/dataset_test.zip"
+            self._word_spotting = False
+        elif "samtext" in dataset_name:
+            self._text_eval_gt_path = "/data/hyunbin/dataset1/text_restoration/100K/images/test/dataset_test.zip"
             self._word_spotting = False
 
         self._text_eval_confidence = cfg.MODEL.FCOS.INFERENCE_TH_TEST
@@ -153,6 +160,8 @@ class TextEvaluator():
             os.mkdir(output_file)
         files = glob.glob(origin_file+'*.txt')
         files.sort()
+        pairs = {}
+        lexicon = []
         if "totaltext" in self.dataset_name:
             if not self.lexicon_type == None:
                 lexicon_path = 'datasets/totaltext/weak_voc_new.txt'
@@ -215,7 +224,93 @@ class TextEvaluator():
                     line=line.strip()
                     lexicon.append(line)
 
+        # elif ("sam_text_test" in self.dataset_name or \
+        #       "samtext" in self.dataset_name or \
+        #       "real_benchmark" in self.dataset_name) and \
+        #      self.lexicon_type == 1: # Assuming EVAL_TYPE=1 means "Full Lexicon" for these
+        #     self._logger.info(f"Loading FULL lexicon for {self.dataset_name} (EVAL_TYPE: {self.lexicon_type})")
+        #     lexicon_path = "/media/dataset1/text_restoration/100K/images/test/sam_text_test_lexicon.txt"
+        #     pair_list= open("/media/dataset1/text_restoration/100K/images/test/sam_text_test_pair_list.txt", 'r')
+        #     pairs = dict()
+        #     for line in pair_list.readlines():
+        #         line = line.strip()
+        #             # might contain space in key word
+        #         split = line.split(' ')
+        #         half = len(split) // 2
+        #         word = ' '.join(split[:half]).upper()
+        #         word_gt = line[len(word)+1:]
+        #         pairs[word] = word_gt
+        #     with open(lexicon_path) as fp:
+        #         lexicon = []
+        #         for line in fp.readlines():
+        #             lexicon.append(line.strip())
+        #     pair_list.close()
+        elif ("sam_text_test" in self.dataset_name or \
+              "samtext" in self.dataset_name) and self.lexicon_type == 1:
+            #   "real_benchmark" in self.dataset_name) and \
+             
+            self._logger.info(f"Loading FULL lexicon for {self.dataset_name} (EVAL_TYPE: {self.lexicon_type})")
+            lexicon_path = "/data/hyunbin/dataset1/text_restoration/100K/images/test/sam_text_test_lexicon.txt"
+            pair_list_path = "/data/hyunbin/dataset1/text_restoration/100K/images/test/sam_text_test_pair_list.txt"
+            
+            if os.path.exists(lexicon_path) and os.path.exists(pair_list_path):
+                # `pairs` and `lexicon` are already defined in the outer scope.
+                # We are now populating them.
+                with open(pair_list_path) as fp_pair:
+                    for line in fp_pair.readlines():
+                        line = line.strip()
+                        split = line.split(' ', 1) # Split only on first space for robustness
+                        if len(split) > 1:
+                            word_key = split[0].upper()
+                            word_gt = split[1]
+                            pairs[word_key] = word_gt
+                        elif len(split) == 1 and split[0]: # Handle lines with only one word
+                            word_key = split[0].upper()
+                            pairs[word_key] = split[0] 
+                with open(lexicon_path) as fp_lex:
+                    for line in fp_lex.readlines():
+                        lexicon.append(line.strip())
+                if lexicon: # Check if lexicon was actually populated
+                    lexicon_loaded_for_this_eval_type = True
+                    self._logger.info(f"Loaded {len(lexicon)} words and {len(pairs)} pairs for SAM/RealBenchmark.")
+                else:
+                    self._logger.warning(f"SAM lexicon file at {lexicon_path} was empty.")
+            else:
+                self._logger.warning(f"Full lexicon/pair file not found for {self.dataset_name} at {lexicon_path} or {pair_list_path}")
+        elif ("real_benchmark" in self.dataset_name) and \
+             self.lexicon_type == 1:
+            self._logger.info(f"Loading FULL lexicon for {self.dataset_name} (EVAL_TYPE: {self.lexicon_type})")
+            lexicon_path = "/data/hyunbin/dataset1/hyunbin/generated_data/real_benchmark_full/real_benchmark_lexicon.txt"
+            pair_list_path = "/data/hyunbin/dataset1/hyunbin/generated_data/real_benchmark_full/real_benchmark_pair_list.txt"
+            
+            if os.path.exists(lexicon_path) and os.path.exists(pair_list_path):
+                # `pairs` and `lexicon` are already defined in the outer scope.
+                # We are now populating them.
+                with open(pair_list_path) as fp_pair:
+                    for line in fp_pair.readlines():
+                        line = line.strip()
+                        split = line.split(' ', 1) # Split only on first space for robustness
+                        if len(split) > 1:
+                            word_key = split[0].upper()
+                            word_gt = split[1]
+                            pairs[word_key] = word_gt
+                        elif len(split) == 1 and split[0]: # Handle lines with only one word
+                            word_key = split[0].upper()
+                            pairs[word_key] = split[0] 
+                with open(lexicon_path) as fp_lex:
+                    for line in fp_lex.readlines():
+                        lexicon.append(line.strip())
+                if lexicon: # Check if lexicon was actually populated
+                    lexicon_loaded_for_this_eval_type = True
+                    self._logger.info(f"Loaded {len(lexicon)} words and {len(pairs)} pairs for SAM/RealBenchmark.")
+                else:
+                    self._logger.warning(f"RealBenchmark lexicon file at {lexicon_path} was empty.")
+            else:
+                self._logger.warning(f"Full lexicon/pair file not found for {self.dataset_name} at {lexicon_path} or {pair_list_path}")
+
         def find_match_word(rec_str, pairs, lexicon=None):
+            if not lexicon: # If lexicon list is empty
+                return rec_str, 0 # Return original string, 0 distance (treat as perfect match for "lexicon" purpose)
             rec_str = rec_str.upper()
             dist_min = 100
             dist_min_pre = 100
@@ -289,15 +384,20 @@ class TextEvaluator():
                 fout.writelines(outstr+'\n')
                 if self.lexicon_type is None:
                     rec_full = rec
+                    if "icdar2015" in self.dataset_name:
+                         fout_full.writelines(pts + ',' + rec_full + '\n')
+                    else:
+                         fout_full.writelines(pts + ',####' + rec_full + '\n')
                 else:
                     match_word, match_dist = find_match_word(rec,pairs,lexicon)
-                    if match_dist<1.5:
-                        rec_full = match_word
-                        if "icdar2015" in self.dataset_name:
-                            pts = pts + ',' + rec_full
-                        else:
-                            pts = pts + ',####' + rec_full
-                        fout_full.writelines(pts+'\n')
+                    # self._logger.info(f"Rec: '{rec}'  Match word: '{match_word}', Match dist: {match_dist}")
+                    # if match_dist<1.5:
+                    rec_full = match_word
+                    if "icdar2015" in self.dataset_name:
+                        pts = pts + ',' + rec_full
+                    else:
+                        pts = pts + ',####' + rec_full
+                    fout_full.writelines(pts+'\n')
             fout.close()
             fout_full.close()
         def zipdir(path, ziph):

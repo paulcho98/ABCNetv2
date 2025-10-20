@@ -29,6 +29,9 @@ class Beziers:
 
         self.tensor = tensor
 
+    def __len__(self):
+        return self.tensor.shape[0]
+
     def to(self, device: str) -> "Beziers":
         return Beziers(self.tensor.to(device))
 

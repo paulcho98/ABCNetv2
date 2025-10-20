@@ -1,0 +1,16 @@
+_BASE_: "../Base-BAText.yaml" # Inherits general ABCNet/BAText settings
+
+MODEL:
+  # VOC_SIZE and CUSTOM_DICT will be inherited from Base-BAText.yaml (VOC_SIZE: 96, no CUSTOM_DICT)
+  # This is ONLY correct if the MODEL.WEIGHTS you intend to use was also trained with VOC_SIZE: 96.
+  # If model_v2_pretrain.pth used a different VOC_SIZE, you MUST override it here:
+  # BATEXT:
+  #   VOC_SIZE: <VOC_SIZE_OF_PRETRAINED_MODEL>
+  #   CUSTOM_DICT: "path/to/corresponding_ctlabels.pkl" # If VOC_SIZE is not 96
+
+  FCOS:
+    INFERENCE_TH_TEST: 0.45 # Tune this threshold for SAM_text_test. Default in Base-BAText is 0.45
+
+DATASETS:
+  # TRAIN: ("sam_text_train",) # If you had a training split for SAM_text_test
+  TEST: ("sam_text_test",)   # Default test set is the original SAM_text_test

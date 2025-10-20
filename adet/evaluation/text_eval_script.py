@@ -32,8 +32,10 @@ def default_evaluation_params():
             'MIN_LENGTH_CARE_WORD' :3,
             # 'GT_SAMPLE_NAME_2_ID':'([0-9]+).txt',
             # 'DET_SAMPLE_NAME_2_ID':'([0-9]+).txt',
-            'GT_SAMPLE_NAME_2_ID': r'(sa_\d+_crop_\d+)\.txt',
-            'DET_SAMPLE_NAME_2_ID': r'(sa_\d+_crop_\d+)\.txt',
+            # 'GT_SAMPLE_NAME_2_ID': r'(sa_\d+_crop_\d+)\.txt',
+            # 'DET_SAMPLE_NAME_2_ID': r'(sa_\d+_crop_\d+)\.txt',
+            'GT_SAMPLE_NAME_2_ID': r'(.+)\.txt',  # Captures everything before .txt
+            'DET_SAMPLE_NAME_2_ID': r'(.+)\.txt', # Captures everything before .txt
             'LTRB':False, #LTRB:2points(left,top,right,bottom) or 4 points(x1,y1,x2,y2,x3,y3,x4,y4)
             'CRLF':False, # Lines are delimited by Windows CRLF format
             'CONFIDENCES':False, #Detections must include confidence value. MAP and MAR will be calculated,
@@ -292,6 +294,9 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
         arrSampleMatch = [];
         sampleAP = 0;
 
+                        
+        ned_values_per_image = []
+
         pointsList,_,transcriptionsList = rrc_evaluation_funcs.get_tl_line_values_from_file_contents(gtFile,evaluationParams['CRLF'],evaluationParams['LTRB'],True,False)
 
         for n in range(len(pointsList)):
@@ -374,8 +379,6 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
                         pG = gtPols[gtNum]
                         pD = detPols[detNum]
                         iouMat[gtNum,detNum] = get_intersection_over_union(pD,pG)
-                
-                ned_values_per_image = []
 
                 for gtNum in range(len(gtPols)):
                     for detNum in range(len(detPols)):
