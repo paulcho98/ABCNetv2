@@ -14,6 +14,7 @@ def detector_postprocess(results, output_height, output_width, mask_threshold=0.
     bezier control points.
     """
     scale_x, scale_y = (output_width / results.image_size[1], output_height / results.image_size[0])
+    results = results.to("cpu")
     results = d2_postprocesss(results, output_height, output_width, mask_threshold)
 
     # scale bezier points

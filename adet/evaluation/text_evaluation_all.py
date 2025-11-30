@@ -76,13 +76,13 @@ class TextEvaluator():
             self._text_eval_gt_path = "datasets/evaluation/gt_custom.zip"
             self._word_spotting = False
         elif "sam_text_test" in dataset_name:
-            self._text_eval_gt_path = "/data/hyunbin/dataset1/text_restoration/100K/images/test/dataset_test.zip"
+            self._text_eval_gt_path = "/home/cvlab08/projects/data2/text_restoration/100K/test/dataset_test.zip"
             self._word_spotting = False
         elif "real_benchmark" in dataset_name:
-            self._text_eval_gt_path = "/data/hyunbin/dataset1/hyunbin/generated_data/real_benchmark_full/dataset_test.zip"
+            self._text_eval_gt_path = "/home/cvlab08/projects/data2/text_restoration/real_benchmark_full/dataset_test.zip"
             self._word_spotting = False
         elif "samtext" in dataset_name:
-            self._text_eval_gt_path = "/data/hyunbin/dataset1/text_restoration/100K/images/test/dataset_test.zip"
+            self._text_eval_gt_path = "/home/cvlab08/projects/data2/text_restoration/100K/test/dataset_test.zip"
             self._word_spotting = False
 
         self._text_eval_confidence = cfg.MODEL.FCOS.INFERENCE_TH_TEST
@@ -250,8 +250,8 @@ class TextEvaluator():
             #   "real_benchmark" in self.dataset_name) and \
              
             self._logger.info(f"Loading FULL lexicon for {self.dataset_name} (EVAL_TYPE: {self.lexicon_type})")
-            lexicon_path = "/data/hyunbin/dataset1/text_restoration/100K/images/test/sam_text_test_lexicon.txt"
-            pair_list_path = "/data/hyunbin/dataset1/text_restoration/100K/images/test/sam_text_test_pair_list.txt"
+            lexicon_path = "/home/cvlab08/projects/data2/text_restoration/100K/test/sam_text_test_lexicon.txt"
+            pair_list_path = "/home/cvlab08/projects/data2/text_restoration/100K/test/sam_text_test_pair_list.txt"
             
             if os.path.exists(lexicon_path) and os.path.exists(pair_list_path):
                 # `pairs` and `lexicon` are already defined in the outer scope.
@@ -280,8 +280,8 @@ class TextEvaluator():
         elif ("real_benchmark" in self.dataset_name) and \
              self.lexicon_type == 1:
             self._logger.info(f"Loading FULL lexicon for {self.dataset_name} (EVAL_TYPE: {self.lexicon_type})")
-            lexicon_path = "/data/hyunbin/dataset1/hyunbin/generated_data/real_benchmark_full/real_benchmark_lexicon.txt"
-            pair_list_path = "/data/hyunbin/dataset1/hyunbin/generated_data/real_benchmark_full/real_benchmark_pair_list.txt"
+            lexicon_path = "/home/cvlab08/projects/data2/text_restoration/real_benchmark_full/real_benchmark_lexicon.txt"
+            pair_list_path = "/home/cvlab08/projects/data2/text_restoration/real_benchmark_full/real_benchmark_pair_list.txt"
             
             if os.path.exists(lexicon_path) and os.path.exists(pair_list_path):
                 # `pairs` and `lexicon` are already defined in the outer scope.
@@ -431,11 +431,33 @@ class TextEvaluator():
             shutil.rmtree(output_file_full)
             return "det.zip", "det_full.zip"
     
-    def evaluate_with_official_code(self, result_path, gt_path):
-        if "icdar2015" in self.dataset_name:
-            return text_eval_script_ic15.text_eval_main_ic15(det_file=result_path, gt_file=gt_path, is_word_spotting=self._word_spotting)
-        else:
-            return text_eval_script.text_eval_main(det_file=result_path, gt_file=gt_path, is_word_spotting=self._word_spotting)
+    def evaluate_with_official_code(self, result_path, gt_path, details_dir_suffix=None):
+        """
+        Evaluate detection results using official evaluation code.
+        
+        Args:
+            result_path: Path to detection zip file
+            gt_path: Path to ground truth zip file
+            details_dir_suffix: Optional suffix to append to EVAL_DETAILS_DIR for saving details
+        """
+        # Save original EVAL_DETAILS_DIR if it exists
+        original_details_dir = os.environ.get("EVAL_DETAILS_DIR")
+        
+        # If details_dir_suffix is provided and EVAL_DETAILS_DIR is set, append suffix
+        if details_dir_suffix and original_details_dir:
+            os.environ["EVAL_DETAILS_DIR"] = os.path.join(original_details_dir, details_dir_suffix)
+        
+        try:
+            if "icdar2015" in self.dataset_name:
+                return text_eval_script_ic15.text_eval_main_ic15(det_file=result_path, gt_file=gt_path, is_word_spotting=self._word_spotting)
+            else:
+                return text_eval_script.text_eval_main(det_file=result_path, gt_file=gt_path, is_word_spotting=self._word_spotting)
+        finally:
+            # Restore original EVAL_DETAILS_DIR
+            if original_details_dir is not None:
+                os.environ["EVAL_DETAILS_DIR"] = original_details_dir
+            elif "EVAL_DETAILS_DIR" in os.environ:
+                del os.environ["EVAL_DETAILS_DIR"]
 
     def evaluate(self):
         if self._distributed:
@@ -466,10 +488,12 @@ class TextEvaluator():
         temp_dir = "temp_det_results/"
         self.to_eval_format(file_path, temp_dir, self._text_eval_confidence)
         result_path, result_path_full = self.sort_detection(temp_dir)
-        text_result = self.evaluate_with_official_code(result_path, self._text_eval_gt_path) # None 
+        # Evaluate non-lexicon results (save details to non_lexicon subdirectory if SAVE_DETAILS is enabled)
+        text_result = self.evaluate_with_official_code(result_path, self._text_eval_gt_path, details_dir_suffix="non_lexicon")
         text_result["e2e_method"] = "None-" + text_result["e2e_method"]
         dict_lexicon = {"1": "Generic", "2": "Weak", "3": "Strong"}
-        text_result_full = self.evaluate_with_official_code(result_path_full, self._text_eval_gt_path) # with lexicon
+        # Evaluate lexicon results (save details to lexicon subdirectory if SAVE_DETAILS is enabled)
+        text_result_full = self.evaluate_with_official_code(result_path_full, self._text_eval_gt_path, details_dir_suffix="lexicon")
         text_result_full["e2e_method"] = dict_lexicon[str(self.lexicon_type)] + "-" + text_result_full["e2e_method"]
         os.remove(result_path)
         os.remove(result_path_full)

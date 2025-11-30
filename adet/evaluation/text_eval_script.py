@@ -10,6 +10,8 @@ import math
 
 from rapidfuzz import string_metric
 
+import os, json, csv
+
 WORD_SPOTTING =True
 def evaluation_imports():
     """
@@ -20,12 +22,17 @@ def evaluation_imports():
             'numpy':'np'
             }
 
+def _env_bool(name, default):
+    v = os.getenv(name)
+    if v is None: return default
+    return v.strip().lower() in ("1","true","yes","y","on")
+
 def default_evaluation_params():
     """
     default_evaluation_params: Default parameters to use for the validation and evaluation.
     """
     global WORD_SPOTTING          
-    return {
+    params = {
             'IOU_CONSTRAINT' :0.5,
             'AREA_PRECISION_CONSTRAINT' :0.5,
             'WORD_SPOTTING' :WORD_SPOTTING,
@@ -40,8 +47,35 @@ def default_evaluation_params():
             'CRLF':False, # Lines are delimited by Windows CRLF format
             'CONFIDENCES':False, #Detections must include confidence value. MAP and MAR will be calculated,
             'SPECIAL_CHARACTERS':str('!?.:,*"()·[]/\''),
-            'ONLY_REMOVE_FIRST_LAST_CHARACTER' : True
+            'ONLY_REMOVE_FIRST_LAST_CHARACTER' : True,
+            'SAVE_DETAILS': False,
+            'DETAILS_DIR': "eval_details",
+            'INCLUDE_MATCHES_IN_OUTPUT': False,
+            'NEAR_MISS_MIN_IOU': 0.30,
+            'NEAR_MISS_TOPK': 3
         }
+    dd = os.getenv("EVAL_DETAILS_DIR")
+    if dd:
+        params["DETAILS_DIR"] = dd
+        # If EVAL_DETAILS_DIR is set, enable saving (unless explicitly disabled via EVAL_SAVE_DETAILS)
+        params["SAVE_DETAILS"] = True
+    # Check EVAL_SAVE_DETAILS - it can enable saving or override the default
+    # If EVAL_DETAILS_DIR is set, EVAL_SAVE_DETAILS will only override if it's explicitly False
+    eval_save_env = os.getenv("EVAL_SAVE_DETAILS")
+    if eval_save_env is not None:
+        # EVAL_SAVE_DETAILS was explicitly set, use it
+        params["SAVE_DETAILS"] = _env_bool("EVAL_SAVE_DETAILS", params["SAVE_DETAILS"])
+    # If EVAL_SAVE_DETAILS was not set but EVAL_DETAILS_DIR was, SAVE_DETAILS is already True from above
+    params["INCLUDE_MATCHES_IN_OUTPUT"] = _env_bool(
+        "EVAL_INCLUDE_MATCHES", params["INCLUDE_MATCHES_IN_OUTPUT"]
+    )
+    v = os.getenv("EVAL_NEAR_MISS_MIN_IOU")
+    if v:
+        params["NEAR_MISS_MIN_IOU"] = float(v)
+    v = os.getenv("EVAL_NEAR_MISS_TOPK")
+    if v:
+        params["NEAR_MISS_TOPK"] = int(v)
+    return params
 
 def validate_data(gtFilePath, submFilePath, evaluationParams):
     """
@@ -74,6 +108,16 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
     """  
     for module,alias in evaluation_imports().items():
         globals()[alias] = importlib.import_module(module)
+    # breakpoint()
+    # config for saving
+    SAVE_DETAILS = evaluationParams.get('SAVE_DETAILS', False)
+    DETAILS_DIR = evaluationParams.get('DETAILS_DIR', None)
+    INCLUDE_MATCHES_IN_OUTPUT = evaluationParams.get('INCLUDE_MATCHES_IN_OUTPUT', False)
+    NEAR_MISS_MIN_IOU = float(evaluationParams.get('NEAR_MISS_MIN_IOU', 0.30))
+    IOU_THR = float(evaluationParams['IOU_CONSTRAINT'])
+    if SAVE_DETAILS and DETAILS_DIR:
+        os.makedirs(DETAILS_DIR, exist_ok=True)
+    rows_for_csv = []  # (sample, precision, recall, hmean, det_only_precision, det_only_recall, det_only_hmean, avg_ned, num_gt_care, num_det_care, detCorrect, detOnlyCorrect)
 
     def polygon_from_points(points):
         """
@@ -294,8 +338,12 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
         arrSampleMatch = [];
         sampleAP = 0;
 
-                        
         ned_values_per_image = []
+        
+        # New collectors for details
+        match_records = []         # per-pair details for IoU-qualified matches
+        near_miss_records = []     # optional hints for FNs
+        det_conf_by_idx = {}       # det index -> confidence (if provided)
 
         pointsList,_,transcriptionsList = rrc_evaluation_funcs.get_tl_line_values_from_file_contents(gtFile,evaluationParams['CRLF'],evaluationParams['LTRB'],True,False)
 
@@ -344,6 +392,12 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
                 detPols.append(detPol)
                 detPolPoints.append(points)
                 detTrans.append(transcription)
+                # store confidence if present
+                if confidencesList is not None and len(confidencesList) > n:
+                    try:
+                        det_conf_by_idx[len(detPols)-1] = float(confidencesList[n])
+                    except Exception:
+                        det_conf_by_idx[len(detPols)-1] = None
 
                 if len(gtDontCarePolsNum)>0 :
                     for dontCarePol in gtDontCarePolsNum:
@@ -414,6 +468,21 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
                                 detCorrect += (1 if correct else 0)
                                 if correct:
                                     detMatchedNums.append(detNum)
+                                # record this assignment
+                                match_records.append({
+                                    "gt_idx": gtNum,
+                                    "det_idx": detNum,
+                                    "iou": float(iouMat[gtNum, detNum]),
+                                    "gt_text": gtTrans[gtNum],
+                                    "det_text": detTrans[detNum],
+                                    "levenshtein": int(ed_distance),
+                                    "ned": float(ned),
+                                    "text_exact": bool(correct),
+                                    "status": "TP_E2E" if correct else "TP_DET_ONLY_TEXT_FP",
+                                    "gt_points": gtPolPoints[gtNum],
+                                    "det_points": detPolPoints[detNum],
+                                    "det_confidence": det_conf_by_idx.get(detNum, None)
+                                })
                 
                 for gtNum in range(len(gtPols)):
                     for detNum in range(len(detPols)):
@@ -475,7 +544,72 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
                                         'evaluationParams': evaluationParams,
                                         'avg_ned': avg_ned_current_image,
                                     }
-        
+        # === Build FP/FN lists and near-misses, then persist ===
+        # matched indices (care only) from our records
+        matched_gt_idxs = {m["gt_idx"] for m in match_records}
+        matched_det_idxs = {m["det_idx"] for m in match_records}
+        unmatched_gt = [
+            {"gt_idx": i, "gt_text": gtTrans[i], "gt_points": gtPolPoints[i], "status": "FN"}
+            for i in range(len(gtPols))
+            if (i not in gtDontCarePolsNum) and (i not in matched_gt_idxs)
+        ]
+        unmatched_det = [
+            {"det_idx": j, "det_text": detTrans[j], "det_points": detPolPoints[j], "det_confidence": det_conf_by_idx.get(j, None), "status": "FP"}
+            for j in range(len(detPols))
+            if (j not in detDontCarePolsNum) and (j not in matched_det_idxs)
+        ]
+        # near-miss suggestions for each FN (best IoU(s) below threshold)
+        if len(unmatched_gt) and len(detPols):
+            for u in unmatched_gt:
+                gi = u["gt_idx"]
+                ious = iouMat[gi] if iouMat.size else []
+                if len(ious):
+                    cand = [
+                        (int(di), float(ious[di]))
+                        for di in range(len(detPols))
+                        if di not in detDontCarePolsNum and ious[di] < IOU_THR and ious[di] >= NEAR_MISS_MIN_IOU
+                    ]
+                    cand.sort(key=lambda x: x[1], reverse=True)
+                    for di, iouv in cand[: int(evaluationParams.get('NEAR_MISS_TOPK', 3)) ]:
+                            near_miss_records.append({
+                                "gt_idx": gi,
+                                "det_idx": di,
+                                "iou": iouv,
+                                "gt_text": gtTrans[gi],
+                                "det_text": detTrans[di],
+                                "gt_points": gtPolPoints[gi],
+                                "det_points": detPolPoints[di],
+                                "det_confidence": det_conf_by_idx.get(di, None)
+                            })
+
+        if SAVE_DETAILS and DETAILS_DIR:
+            sample_detail = {
+                "sample_id": resFile,
+                "metrics": {
+                    "precision": precision, "recall": recall, "hmean": hmean,
+                    "det_only_precision": det_only_precision, "det_only_recall": det_only_recall, "det_only_hmean": det_only_hmean,
+                    "avg_ned": avg_ned_current_image,
+                    "num_gt_care": numGtCare, "num_det_care": numDetCare,
+                    "det_correct": detCorrect, "det_only_correct": detOnlyCorrect
+                },
+                "matches": match_records,
+                "unmatched_gt": unmatched_gt,
+                "unmatched_det": unmatched_det,
+                "near_misses": near_miss_records
+            }
+            base_id = os.path.splitext(os.path.basename(resFile))[0]
+            out_path = os.path.join(DETAILS_DIR, f"{base_id}.json")
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(sample_detail, f, ensure_ascii=False, indent=2)
+        # optionally attach matches to return blob (can be huge)
+        if INCLUDE_MATCHES_IN_OUTPUT:
+            perSampleMetrics[resFile]["matches"] = match_records
+            perSampleMetrics[resFile]["unmatched_gt"] = unmatched_gt
+            perSampleMetrics[resFile]["unmatched_det"] = unmatched_det
+            perSampleMetrics[resFile]["near_misses"] = near_miss_records
+
+        # add one summary row
+        rows_for_csv.append([resFile, precision, recall, hmean, det_only_precision, det_only_recall, det_only_hmean, avg_ned_current_image, numGtCare, numDetCare, detCorrect, detOnlyCorrect])
     
     methodRecall = 0 if numGlobalCareGt == 0 else float(matchedSum)/numGlobalCareGt
     methodPrecision = 0 if numGlobalCareDet == 0 else float(matchedSum)/numGlobalCareDet
@@ -499,6 +633,17 @@ def evaluate_method(gtFilePath, submFilePath, evaluationParams):
     # Add the new metrics here
     resDict['overall_avg_ned'] = overall_avg_ned
     resDict['overall_per_image_avg_ned'] = overall_per_image_avg_ned
+    
+    if SAVE_DETAILS and DETAILS_DIR:
+        resDict['details_dir'] = DETAILS_DIR
+        # write summary CSV
+        csv_path = os.path.join(DETAILS_DIR, "summary.csv")
+        write_header = not os.path.exists(csv_path)
+        with open(csv_path, "w", newline="", encoding="utf-8") as cf:
+            w = csv.writer(cf)
+            if write_header:
+                w.writerow(["sample","precision","recall","hmean","det_only_precision","det_only_recall","det_only_hmean","avg_ned","num_gt_care","num_det_care","detCorrect","detOnlyCorrect"])
+            w.writerows(rows_for_csv)
     
     return resDict;
 
